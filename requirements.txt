@@ -1,0 +1,13 @@
+cdifflib==1.2.5
+librosa==0.9.1
+matplotlib==3.5.2
+neurokit2==0.2.0
+nltk==3.7
+numba==0.55.1
+numpy==1.19.5
+pandas==1.4.2
+scikit_learn==1.1.2
+scipy==1.8.0
+tensorflow==2.5.0
+torch==1.11.0
+tqdm==4.64.0
