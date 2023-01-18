@@ -22,14 +22,15 @@ class TopicTransformer(keras.Model):
     def __init__(self, vocab, in_length, in_channels,
                  n_grps, N, num_classes, k,
                  dropout, first_width,
-                 stride, dilation, num_layers, d_mode, nhead, **kwargs):
+                 stride, dilation, dilation_rate, num_layers, d_mode, nhead, **kwargs):
         super(TopicTransformer, self).__init__()
         self.vocab = vocab
 
         self.ecg_resnet_model = ECGResNet(in_length, in_channels,
                                           n_grps, N,
                                           dropout, first_width,
-                                          stride, dilation)
+                                          stride, dilation, dilation_rate)
+
 
         self.feature_embedding = layers.Dense(d_mode)
         self.embed = layers.Embedding(len(vocab), 2 * d_mode)
@@ -54,6 +55,7 @@ class TopicTransformer(keras.Model):
         waveforms = tf.cast(waveforms, tf.float32)
 
         image_features, avg_features = self.ecg_resnet_model(waveforms)
+
         image_features = self.feature_embedding(image_features)
 
         start_tokens = np.array([self.vocab('<start>')])

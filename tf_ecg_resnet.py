@@ -10,7 +10,7 @@ class BasicBlock(layers.Layer):
     This class implements a residual block.
     """
 
-    def __init__(self, in_channels, out_channels, stride, dropout, dilation, dilation_rate, **kwargs):
+    def __init__(self, in_channels, out_channels, stride, dropout, dilation, **kwargs):
         """
         Initializes BasicBlock object.
 
@@ -30,35 +30,30 @@ class BasicBlock(layers.Layer):
         self.stride = stride
         self.dropout = dropout
         self.dilation = dilation
-        self.dilation_rate = dilation_rate
 
         # branch 0
         self.branch0_batch1 = layers.BatchNormalization()
-        self.branch0_conv1d1 = layers.Conv1D(self.in_channels // self.num_branches, kernel_size=1, padding='valid',
+        self.branch0_conv1d1 = layers.SeparableConv1D(self.in_channels // self.num_branches, kernel_size=1, padding='valid',
                                              strides=1,
                                              use_bias=False)
         self.branch0_batch2 = layers.BatchNormalization()
         self.branch0_padding_1 = layers.ZeroPadding1D(padding=(self.kernel_size - 1) // 2)
-        self.branch0_conv1d2 = layers.Conv1D(self.out_channels // self.num_branches, kernel_size=self.kernel_size,
+        self.branch0_conv1d2 = layers.SeparableConv1D(self.out_channels // self.num_branches, kernel_size=self.kernel_size,
                                              padding='valid',
-                                             strides=1, use_bias=False)
+                                             strides=self.stride, use_bias=False)
+
         # branch 1
         self.branch1_batch1 = layers.BatchNormalization()
-        self.branch1_conv1d1 = layers.Conv1D(self.in_channels // self.num_branches, kernel_size=1, padding='valid',
+        self.branch1_conv1d1 = layers.SeparableConv1D(self.in_channels // self.num_branches, kernel_size=1, padding='valid',
                                              strides=1, dilation_rate=1,
                                              use_bias=False)
         self.branch1_batch2 = layers.BatchNormalization()
-        self.branch1_padding_1 = layers.ZeroPadding1D(padding=((self.kernel_size - 1) * dilation) // 2)
-
-        self.branch1_padding_2 = layers.ZeroPadding1D(padding=((self.kernel_size - 1) * dilation * self.dilation_rate)// 2)
-        self.branch1_conv1d2 = layers.Conv1D(self.out_channels // self.num_branches, kernel_size=self.kernel_size,
+        self.branch1_padding_1 = layers.ZeroPadding1D(padding=((self.kernel_size - 1) * dilation) // 2 - 25)
+        self.branch1_padding_1_1 = layers.ZeroPadding1D(padding=((self.kernel_size - 1) * dilation) // 2)
+        self.branch1_padding_1_2 = layers.ZeroPadding1D(padding=((self.kernel_size - 1) * (dilation) // 3 + 1) + 104)
+        self.branch1_conv1d2 = layers.SeparableConv1D(self.out_channels // self.num_branches, kernel_size=self.kernel_size,
                                              padding='valid',
-                                             strides=1, dilation_rate=self.dilation, use_bias=False)
-
-        self.branch1_conv1d2_2 = layers.Conv1D(self.out_channels // self.num_branches, kernel_size=self.kernel_size,
-                                             padding='valid',
-                                             strides=1, dilation_rate=self.dilation * self.dilation_rate, use_bias=False)
-
+                                             strides=self.stride, dilation_rate=self.dilation, use_bias=False)
         # self.branch1_batch3 = layers.BatchNormalization()
         # self.branch1_padding_2 = layers.ZeroPadding1D(padding=2)
         # self.branch1_conv1d3 = layers.Conv1D(self.out_channels // self.num_branches, kernel_size=self.kernel_size,
@@ -66,7 +61,7 @@ class BasicBlock(layers.Layer):
         #                                      strides=self.stride, use_bias=False)
 
         # shortcut
-        self.shortcut_conv1d = layers.Conv1D(self.out_channels, kernel_size=1, padding='valid', strides=self.stride,
+        self.shortcut_conv1d = layers.SeparableConv1D(self.out_channels, kernel_size=1, padding='valid', strides=self.stride,
                                              use_bias=False)
 
     def sub_branch0(self, x, training=False):
@@ -79,9 +74,6 @@ class BasicBlock(layers.Layer):
             x = layers.Dropout(self.dropout)(x)
         x = self.branch0_padding_1(x)
         x = self.branch0_conv1d2(x)
-        if self.stride == 2:
-            index = np.arange(0, x.shape[1], 2)
-            x = x[:, index]
         return x
 
     def sub_branch1(self, x, training=False):
@@ -93,31 +85,67 @@ class BasicBlock(layers.Layer):
         if training:
             x = layers.Dropout(self.dropout)(x)
         x = self.branch1_padding_1(x)
-        if self.stride == 2:
-            n = self.branch1_conv1d2(x)
+        #print(x.shape)
         x = self.branch1_conv1d2(x)
-
-        if self.stride == 2:
-            index = np.arange(0, x.shape[1], 2)
-            x = x[:, index]
+        print(x)
         # x = self.branch1_batch3(x, training=training)
         # x = layers.Activation('relu')(x)
         # x = self.branch1_padding_2(x)
         # x = self.branch1_conv1d3(x)
         return x
 
+    def sub_branch11(self, x, training=False):
+        x = self.branch1_batch1(x, training=training)
+        x = layers.Activation('relu')(x)
+        x = self.branch1_conv1d1(x)
+        x = self.branch1_batch2(x, training=training)
+        x = layers.Activation('relu')(x)
+        if training:
+            x = layers.Dropout(self.dropout)(x)
+        x = self.branch1_padding_1_1(x)
+        #print(x.shape)
+        x = self.branch1_conv1d2(x)
+        print('Branch1_1 {}'.format(x.shape))
+        return x
+
+    def sub_branch12(self, x, training=False):
+        x = self.branch1_batch1(x, training=training)
+        x = layers.Activation('relu')(x)
+        x = self.branch1_conv1d1(x)
+        x = self.branch1_batch2(x, training=training)
+        x = layers.Activation('relu')(x)
+        if training:
+            x = layers.Dropout(self.dropout)(x)
+        x = self.branch1_padding_1_2(x)
+        #print(x.shape)
+        x = self.branch1_conv1d2(x)
+        print('Branch1_2 {}'.format(x.shape))
+        return x
+
     def shortcut(self, x):
         if self.in_channels == self.out_channels and self.stride == 1:
             shortcut = x
-        elif self.stride == 2:
+        else:
             shortcut = self.shortcut_conv1d(x)
         return shortcut
 
     def call(self, x, training=False):
         x0 = self.sub_branch0(x, training=training)
         x1 = self.sub_branch1(x, training=training)
-        x = tf.concat([x0, x1], 2)
+        #shortcut = self.shortcut(x)
+        x11 = self.sub_branch11(x, training=training)
+        x12 = self.sub_branch12(x, training=training)
+
+        print(x0.shape, x1.shape, x11.shape, x12.shape)
+        try:
+            x = tf.concat([x0, x1], 2)
+        except:
+            try:
+                x = tf.concat([x0, x11], 2)
+            except:
+                x = tf.concat([x0, x12], 2)
         x = tf.keras.layers.Add()([x, x])
+
         return x
 
 
@@ -135,13 +163,13 @@ class Stem(layers.Layer):
         self.dropout = dropout
 
         self.padding_1 = layers.ZeroPadding1D(padding=3)
-        self.conv1d1 = layers.Conv1D(self.first_width // 2, kernel_size=7, padding='valid', strides=2, dilation_rate=1,
+        self.conv1d1 = layers.SeparableConv1D(self.first_width // 2, kernel_size=7, padding='valid', strides=2, dilation_rate=1,
                                      use_bias=False)
         self.batch1 = layers.BatchNormalization()
-        self.conv1d2 = layers.Conv1D(self.first_width, kernel_size=1, padding='valid', strides=1, use_bias=False)
+        self.conv1d2 = layers.SeparableConv1D(self.first_width, kernel_size=1, padding='valid', strides=1, use_bias=False)
         self.batch2 = layers.BatchNormalization()
         self.padding_2 = layers.ZeroPadding1D(padding=2)
-        self.conv1d3 = layers.Conv1D(self.first_width, kernel_size=5, padding='valid', strides=1, use_bias=False)
+        self.conv1d3 = layers.SeparableConv1D(self.first_width, kernel_size=5, padding='valid', strides=1, use_bias=False)
 
     def call(self, inputs, training=False):
         x = self.padding_1(inputs)
@@ -155,6 +183,7 @@ class Stem(layers.Layer):
             x = layers.Dropout(self.dropout)(x)
         x = self.padding_2(x)
         x = self.conv1d3(x)
+
         return x
 
 
@@ -166,7 +195,7 @@ class ECGResNet(keras.Model):
    """
 
     def __init__(self, in_length, in_channels, n_grps, N, dropout,
-                 first_width, stride, dilation, rate):
+                 first_width, stride, dilation):
         """
         Initializes ECGResNet object.
 
@@ -189,7 +218,6 @@ class ECGResNet(keras.Model):
         self.dropout = dropout
         self.first_width = first_width
         self.dilation = dilation
-        self.dilation_rate = rate
 
         self.num_branches = 2
         self.first_width = self.first_width * self.num_branches
@@ -208,8 +236,7 @@ class ECGResNet(keras.Model):
                                                           out_channels=out_channels,
                                                           stride=self.stride[i],
                                                           dropout=self.dropout,
-                                                          dilation=self.dilation,
-                                                          dilation_rate = self.dilation_rate))
+                                                          dilation=self.dilation))
         self.basic_block_layers.append(layers.BatchNormalization())
         self.basic_block_layers.append(layers.Activation('relu'))
 
@@ -241,4 +268,5 @@ class ECGResNet(keras.Model):
         x = layers.Input(shape=input_shape)
         model = Model(inputs=x, outputs=[self.call(x)])
         return model.summary()
+
 

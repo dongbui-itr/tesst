@@ -20,6 +20,7 @@ class TopicTransformerModule(Layer):
         # self.transformer_encoder = Encoder(num_layers=num_layers, d_model=d_model,
         #                                    num_heads=nhead, dff=2048, input_vocab_size=vocab_size,
         #                                    maximum_position_encoding=5000)
+
         self.transformer_encoder = FNetEncoder(config)
 
         self.mlc = mlc
