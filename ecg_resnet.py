@@ -98,8 +98,8 @@ class BasicBlock(layers.Layer):
         x = self.branch1_conv1d2(x)
 
         if self.stride == 2:
-            index = np.arange(0, x.shape[1], 2)
-            x = x[:, index]
+            index = np.arange(0, x.shape[1] + 1)
+            x = x[:, index[0]:index[-1]:2]
         # x = self.branch1_batch3(x, training=training)
         # x = layers.Activation('relu')(x)
         # x = self.branch1_padding_2(x)
